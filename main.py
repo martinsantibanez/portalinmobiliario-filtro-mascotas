@@ -44,14 +44,14 @@ def get_page_source_with_random_user_agent(url):
 load_dotenv()
 
 # URL to the locations we want to scrape
-CHILE_URL = 'https://www.portalinmobiliario.com/venta/departamento'
-CHILEARRIENDO_URL = 'https://www.portalinmobiliario.com/arriendo/departamento'
+# CHILE_URL = 'https://www.portalinmobiliario.com/venta/departamento'
+CHILEARRIENDO_URL = 'https://www.portalinmobiliario.com/arriendo/departamento/_OrderId_BEGINS*DESC_BEDROOMS_3-4_Cocheras_1_item*location_lat:-33.03910505830431*-33.006144994231505,lon:-71.60384595550538*-71.53561055816651'
 
 COMMUNES = [
-    {
-        'name': 'Chile',
-        'link': CHILE_URL
-    },
+    # {
+    #     'name': 'Chile',
+    #     'link': CHILE_URL
+    # },
     {
         'name': 'ChileA',
         'link': CHILEARRIENDO_URL
@@ -160,9 +160,8 @@ def get_recent_apartments(page):
                 response = session.get(link, headers=headers)
                 response.raise_for_status()
                 apartment_page_source = response.text
-                apartment_data = extract_apartment_data(apartment_page_source)
-
-                if apartment_data:
+                apartment_data = extract_apartment_data(apartment_page_source, link)
+                if apartment_data and apartment_data['mascotas']:
                     apartments.append(apartment_data)
                     print(apartment_data)  # Add this line to print the apartment data
 
@@ -193,7 +192,7 @@ def get_value_by_label(soup, label):
                 return value_element.text.strip()
     return "N/A"
 
-def extract_apartment_data(apartment_page_source):
+def extract_apartment_data(apartment_page_source, apartment_url):
     """Extrae los datos de un apartamento de la página individual del apartamento.
 
     Args:
@@ -214,24 +213,34 @@ def extract_apartment_data(apartment_page_source):
 
     apartment_data['price'] = apartment_soup.select_one('span.andes-money-amount__fraction').text.strip()
 
-    apartment_data['dimensions'] = apartment_soup.select_one('div.ui-pdp-highlighted-specs-res__icon-label:nth-of-type(1) span').text.strip()
+    # No funcionan para mi busqueda:
+    # apartment_data['dimensions'] = apartment_soup.select_one('div.ui-pdp-highlighted-specs-res__icon-label:nth-of-type(1) span').text.strip()
 
-    apartment_data['bedrooms'] = apartment_soup.select_one('div.ui-pdp-highlighted-specs-res__icon-label:nth-of-type(2) span').text.strip()
+    # apartment_data['bedrooms'] = apartment_soup.select_one('div.ui-pdp-highlighted-specs-res__icon-label:nth-of-type(2) span').text.strip()
 
-    apartment_data['bathrooms'] = apartment_soup.select_one('div:nth-of-type(3) span.ui-pdp-size--SMALL.ui-pdp-family--REGULAR').text.strip()
+    # apartment_data['bathrooms'] = apartment_soup.select_one('div:nth-of-type(3) span.ui-pdp-size--SMALL.ui-pdp-family--REGULAR').text.strip()
 
-    apartment_data['location'] = apartment_soup.select_one('.ui-vip-location__subtitle p').text.strip()
+    # apartment_data['location'] = apartment_soup.select_one('.ui-vip-location__subtitle p').text.strip()
 
     map_element = apartment_soup.select_one('.ui-vip-location__map img')
     apartment_data['map_link'] = map_element['src'] if map_element else 'N/A'
+    
+    apartment_data['link'] = apartment_url
 
-    # Utilizar Selenium para obtener el contenido de la página
-    modalidad_page_source = get_page_source(apartment_data['location'])
-    if modalidad_page_source:
-        modalidad_soup = BeautifulSoup(modalidad_page_source, 'html.parser')
-        apartment_data['modalidad'] = modalidad_soup.select_one('a.andes-breadcrumb__link[title="Propiedades usadas"]').text.strip()
+    mascotas_soup = apartment_soup.select_one('.ui-vpp-highlighted-specs__key-value__labels .ui-pdp-color--BLACK:-soup-contains("mascotas")')
+    if mascotas_soup:
+        mascotas_value = mascotas_soup.parent.select_one('.ui-pdp-family--SEMIBOLD').text
+        apartment_data['mascotas'] = mascotas_value == 'Sí'
     else:
-        apartment_data['modalidad'] = 'N/A'
+        apartment_data['mascotas'] = False     
+   
+    # No funciona / no relevante:
+    # modalidad_page_source = get_page_source(apartment_data['location'])
+    # if modalidad_page_source:
+    #     modalidad_soup = BeautifulSoup(modalidad_page_source, 'html.parser')
+    #     apartment_data['modalidad'] = modalidad_soup.select_one('a.andes-breadcrumb__link[title="Propiedades usadas"]').text.strip()
+    # else:
+    #     apartment_data['modalidad'] = 'N/A'
 
         
 
@@ -266,10 +275,12 @@ def parse_map_link(soup):
     return "N/A"
 
 if __name__ == "__main__":
-    WEBHOOK_URL = os.getenv('WEBHOOK_URL')
+    # WEBHOOK_URL = os.getenv('WEBHOOK_URL')
     for commune in COMMUNES:
         all_apartments = get_all_apartments(commune['link'])
+        print(json.dumps(all_apartments))
         new_apartments = check_if_are_new_apartments(commune['name'], all_apartments)
         if len(new_apartments) > 0:
-            requests.post(WEBHOOK_URL, json={'data': new_apartments})
-            update_most_recent_file(commune['name'], all_apartments)
+            print(json.dumps(new_apartments))
+            # requests.post(WEBHOOK_URL, json={'data': new_apartments})
+            # update_most_recent_file(commune['name'], all_apartments)
