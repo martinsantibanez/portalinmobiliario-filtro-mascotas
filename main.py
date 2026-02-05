@@ -1,4 +1,5 @@
 import os
+import csv
 import requests
 import json
 from dotenv import load_dotenv
@@ -233,7 +234,13 @@ def extract_apartment_data(apartment_page_source, apartment_url):
         apartment_data['mascotas'] = mascotas_value == 'Sí'
     else:
         apartment_data['mascotas'] = False     
-   
+        
+    amoblado_soup = apartment_soup.select_one('.ui-vpp-highlighted-specs__key-value__labels .ui-pdp-color--BLACK:-soup-contains("Amoblado")')
+    if amoblado_soup:
+        amoblado_value = amoblado_soup.parent.select_one('.ui-pdp-family--SEMIBOLD').text
+        apartment_data['amoblado'] = amoblado_value == 'Sí'
+    else:
+        apartment_data['amoblado'] = False     
     # No funciona / no relevante:
     # modalidad_page_source = get_page_source(apartment_data['location'])
     # if modalidad_page_source:
@@ -278,9 +285,15 @@ if __name__ == "__main__":
     # WEBHOOK_URL = os.getenv('WEBHOOK_URL')
     for commune in COMMUNES:
         all_apartments = get_all_apartments(commune['link'])
-        print(json.dumps(all_apartments))
-        new_apartments = check_if_are_new_apartments(commune['name'], all_apartments)
-        if len(new_apartments) > 0:
-            print(json.dumps(new_apartments))
+
+        with open('employee_file.csv', mode='w') as employee_file:
+            employee_writer = csv.writer(employee_file, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+            for apartment in all_apartments:
+                employee_writer.writerow([apartment['title'], apartment['image'], apartment['price'], apartment['link'], apartment['mascotas'], apartment['amoblado']])
+            # employee_writer.writerow(['Erica Meyers', 'IT', 'March'])
+        # print(json.dumps(all_apartments))
+        # new_apartments = check_if_are_new_apartments(commune['name'], all_apartments)
+        # if len(new_apartments) > 0:
+            # print(json.dumps(new_apartments))
             # requests.post(WEBHOOK_URL, json={'data': new_apartments})
             # update_most_recent_file(commune['name'], all_apartments)
